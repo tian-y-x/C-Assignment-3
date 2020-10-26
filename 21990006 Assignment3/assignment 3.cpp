@@ -6,13 +6,16 @@
 #include <ctime>
 #include <chrono>
 #include <windows.h>
+#include <smmintrin.h>
+#include <xmmintrin.h>
 
 #pragma optimize(2)
+
 using namespace std;
 using namespace literals;
 
 
-
+float dot_product(const float* x, const float* y, const long& len);
 
 #define Big
 //#define input
@@ -22,7 +25,7 @@ class BigData
 {
 public:
 	long long len ;
-	float* V;
+	float* V;  
 	BigData()
 	{
 		len = amount;
@@ -34,7 +37,7 @@ public:
 	{
 		for (int i = 0; i < amount; i++)
 		{
-			V[i] = float(1.1) ;
+			V[i] = float(1) ;
 		}
 	}
 };
@@ -54,7 +57,7 @@ public:
 	void equal(const Vec& b)
 	{
 		if (this->len != b.len)
-			cout << "Á½ÏòÁ¿Î¬¶È²»Í¬" << endl, exit(-1);
+			cout << "ä¸¤å‘é‡ç»´åº¦ä¸åŒ" << endl, exit(-1);
 		return;
 	}
 	void in()
@@ -69,113 +72,90 @@ public:
 				pos++;
 
 			if (str[pos] != '-' && str[pos] != '+' && (str[pos] < '0' || str[pos]>'9') && (str[pos] != ' '))
-				cout << "ÊäÈë²»ºÏ·¨" << endl, exit(-1); 
+				cout << "è¾“å…¥ä¸åˆæ³•" << endl, exit(-1); 
 			if (this->len % 10000 == 0)
 				realloc(v, 10000 + this->len);
 			temp = stof(p + pos, &tpos);
 			this->v[len++] = temp;
 			pos += tpos;
 			if (str[pos] == '-' || str[pos] == '+')
-				cout << "ÊäÈë²»ºÏ·¨" << endl, exit(-1);  //±ÜÃâ³öÏÖĞÎÈç-123-2±»ÅĞ¶ÏÎªºÏ·¨
+				cout << "è¾“å…¥ä¸åˆæ³•" << endl, exit(-1);  //é¿å…å‡ºç°å½¢å¦‚-123-2è¢«åˆ¤æ–­ä¸ºåˆæ³•
 		}
 	}
 	
 };
 #endif
 
-float* p, * q;
+float* p, * q, * m, * n;
 long float ans = 0;
-HANDLE hMutex = NULL;//»¥³âÁ¿
-//Ïß³Ìº¯Êı
-DWORD WINAPI cal(LPVOID lpParamter)
-{
-	//ÇëÇóÒ»¸ö»¥³âÁ¿Ëø
-	WaitForSingleObject(hMutex, INFINITE);
-	register int i, j;
-	for (i = 1e7; i < 1e8; i = i + 4000)
-	{
-		for (j = i; j < i + 4000; ++j)
-		{
-			ans += p[j] * q[j];
-		}
+
+/**************************SSEæŒ‡ä»¤é›†***************************/
+float dot_product(const float* x, const float* y, const long& len) {
+	long float prod = 0.0f;
+	const int mask = 0xff;
+	__m128 X, Y;
+	float tmp;
+
+
+	long i;
+	for (i = 0; i < len; i += 4) {
+		X = _mm_loadu_ps(x + i); //_mm_loadu_psæŠŠfloatè½¬ä¸º__m128
+		Y = _mm_loadu_ps(y + i);
+		_mm_storeu_ps(&tmp, _mm_dp_ps(X, Y, mask));
+		prod += tmp;
 	}
 
-	//ÊÍ·Å»¥³âÁ¿Ëø
+	return prod;
+}
+/**************************SSEæŒ‡ä»¤é›†***************************/
+
+
+/***********************å¤šçº¿ç¨‹*********************************/
+HANDLE hMutex = NULL;//äº’æ–¥é‡
+//çº¿ç¨‹å‡½æ•°
+DWORD WINAPI cal(LPVOID lpParamter)
+{
+	//è¯·æ±‚ä¸€ä¸ªäº’æ–¥é‡é”
+	WaitForSingleObject(hMutex, INFINITE);
+	register int i, j;
+	ans+=dot_product(p, q, 100000000);
+	//é‡Šæ”¾äº’æ–¥é‡é”
 	ReleaseMutex(hMutex);
-	
-	return 0L;//±íÊ¾·µ»ØµÄÊÇlongĞÍµÄ0
+	return 0L;
 
 }
+/***********************å¤šçº¿ç¨‹*********************************/
+
+
 
 int main()
 {
 	auto startio = chrono::steady_clock::now();
 
-	/*********³õÊ¼»¯*********/
+	/*********åˆå§‹åŒ–*********/
 #ifdef Big
 	register int i,j;
 	BigData V1, V2;
 	V1.Init();
 	V2.Init();
-	 p = &(V1.V[100000000]),  q = &(V2.V[100000000]);
+	m = V1.V, n = V2.V;
+	p = &(V1.V[100000000]), q = &(V2.V[100000000]);
+
+	/*çº¿ç¨‹åˆå§‹åŒ–*/
 	hMutex = CreateMutex(NULL, FALSE, L"screen");
 	HANDLE hThread = CreateThread(NULL, 0, cal, NULL, 0, NULL);
-	CloseHandle(hThread); 
+	CloseHandle(hThread);
+
 	auto start = chrono::steady_clock::now();
-	cout
-		<< "IO: "
-		<< chrono::duration_cast<chrono::microseconds>(start - startio).count() 
-		<< "Î¢Ãë" << endl;
-	/*********¼ÆËã***********/
-	
-	cout << "The length is: " << V1.len << endl;
+	cout<< "IO: "<< chrono::duration_cast<chrono::microseconds>(start - startio).count() << "å¾®ç§’" << endl;
 
 	
-	
+	/*********è®¡ç®—***********/
 	WaitForSingleObject(hMutex, INFINITE);
-	for (i = 0; i < 1e8; i=i+4000)
-	{
-		//m = i + 4;
-		for (j = i; j < i+4000; ++j)
-		{
-			ans += V1.V[j] * V2.V[j];
-		}
-		
-	}
 	ReleaseMutex(hMutex);
 
-	//for (i = 0; i < 2.5e7; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
-	//for (; i < 5e7; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
-	//for (; i < 7.5e7; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
-	//for (; i < 1e8; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
-	//for (; i < 1.25e8; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
-	//for (; i < 1.5e8; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
-	//for (; i < 1.75e8; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
-	//for (; i < 2e8; i++)
-	//{
-	//	ans += V1.V[i] * V2.V[i];
-	//}
+
+	ans+=dot_product(m, n, 100000000);
 	cout << "The answer is: " << ans << endl;
 	
 
@@ -183,11 +163,16 @@ int main()
 
 	auto end = chrono::steady_clock::now();
 	cout
-		<< chrono::duration_cast<chrono::microseconds>(end - start).count() << "Î¢Ãë ¡Ö "
-		<< chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ºÁÃë ¡Ö "
-		<< chrono::duration_cast<chrono::seconds>(end - start).count() << "Ãë." << endl;
-	delete(V1.V);
-	delete(V2.V);
+		<< chrono::duration_cast<chrono::microseconds>(end - start).count() << "å¾®ç§’ â‰ˆ "
+		<< chrono::duration_cast<chrono::milliseconds>(end - start).count() << "æ¯«ç§’ ";
+
+
+
+
+	delete[] V1.V;
+	delete[] V2.V;
+
+
 #endif
 
 
@@ -203,7 +188,7 @@ int main()
 	auto start = chrono::steady_clock::now();
 	cout
 		<< "IO: "
-		<<chrono::duration_cast<chrono::microseconds>(start - startio).count() << "Î¢Ãë"<<endl;
+		<<chrono::duration_cast<chrono::microseconds>(start - startio).count() << "å¾®ç§’"<<endl;
 
 	long float ans=0;
 	
@@ -220,9 +205,9 @@ int main()
 	auto end = chrono::steady_clock::now();
 
 	cout
-		<< chrono::duration_cast<chrono::microseconds>(end - start).count() << "Î¢Ãë ¡Ö "
-		<< chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ºÁÃë ¡Ö "
-		<< chrono::duration_cast<chrono::seconds>(end - start).count() << "Ãë.\n";
+		<< chrono::duration_cast<chrono::microseconds>(end - start).count() << "å¾®ç§’ â‰ˆ "
+		<< chrono::duration_cast<chrono::milliseconds>(end - start).count() << "æ¯«ç§’ â‰ˆ "
+		<< chrono::duration_cast<chrono::seconds>(end - start).count() << "ç§’.\n";
 #endif
 	return 0;
 }
